@@ -1,5 +1,5 @@
 {
-  "name": "homebridge-cmd-television",
+  "name": "homebridge-cmd-tv-input",
   "version": "1.0.0",
   "description": "Homebridge plugin that creates a virtual Television accessory with shell-command-driven input selection",
   "main": "index.js",
