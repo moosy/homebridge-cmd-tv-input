@@ -13,18 +13,15 @@
     "command",
     "shell"
   ],
-  "author": {
-    "name": "Michael Moosbauer",
-    "url": "https://github.com/moosy"
-  },
+  "author": "Michael Moosbauer",
   "license": "MIT",
-  "homepage": "https://github.com/moosy/homebridge-cmd-television#readme",
+  "homepage": "https://github.com/moosy/homebridge-cmd-tv-input#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/moosy/homebridge-cmd-television.git"
+    "url": "git+https://github.com/moosy/homebridge-cmd-tv-input.git"
   },
   "bugs": {
-    "url": "https://github.com/moosy/homebridge-cmd-television/issues"
+    "url": "https://github.com/moosy/homebridge-cmd-tv-input/issues"
   },
   "engines": {
     "node": ">=18.0.0",
