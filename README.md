@@ -1,4 +1,4 @@
-# homebridge-cmd-television
+# homebridge-cmd-tv-input
 
 Homebridge plugin that creates a virtual **Television** accessory in HomeKit with shell-command-driven input selection.
 
@@ -13,11 +13,11 @@ Each "input" maps to a shell command. Selecting an input in HomeKit runs the cor
 
 ## Installation
 
-Via the Homebridge UI: search for `homebridge-cmd-television`.
+Via the Homebridge UI: search for `homebridge-cmd-tv-input`.
 
 Or via npm:
 ```bash
-npm install -g homebridge-cmd-television
+npm install -g homebridge-cmd-tv-input
 ```
 
 ## Configuration
