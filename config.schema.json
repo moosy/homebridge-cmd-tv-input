@@ -1,0 +1,118 @@
+{
+  "pluginAlias": "CmdTelevision",
+  "pluginType": "platform",
+  "singular": false,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "televisions": {
+        "title": "Televisions",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string",
+              "required": true,
+              "placeholder": "My Selector"
+            },
+            "state_cmd": {
+              "title": "State Command",
+              "type": "string",
+              "required": true,
+              "description": "Shell command that returns the internal name of the active input, or nothing if off.",
+              "placeholder": "/usr/local/bin/mycommand.sh STATUS"
+            },
+            "on_cmd": {
+              "title": "On Command",
+              "type": "string",
+              "description": "Shell command when TV is switched on. Should return the internal name of the activated input.",
+              "placeholder": "/usr/local/bin/mycommand.sh LAST"
+            },
+            "off_cmd": {
+              "title": "Off Command",
+              "type": "string",
+              "description": "Shell command when TV is switched off.",
+              "placeholder": "/usr/local/bin/mycommand.sh OFF"
+            },
+            "set_cmd": {
+              "title": "Set Command",
+              "type": "string",
+              "description": "Base command for input selection. The internal input name is appended automatically (unless cmd is set per input).",
+              "placeholder": "/usr/local/bin/mycommand.sh"
+            },
+            "inputs": {
+              "title": "Inputs",
+              "type": "array",
+              "required": true,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "title": "Internal Name",
+                    "type": "string",
+                    "required": true,
+                    "description": "Internal key, no spaces. Used as argument to set_cmd and matched against state_cmd output.",
+                    "placeholder": "Option1"
+                  },
+                  "label": {
+                    "title": "Display Label",
+                    "type": "string",
+                    "description": "Display name shown in HomeKit. May contain spaces. Defaults to internal name.",
+                    "placeholder": "First Option"
+                  },
+                  "cmd": {
+                    "title": "Custom Command (optional)",
+                    "type": "string",
+                    "description": "Override the shell command for this input. If omitted, set_cmd + name is used.",
+                    "placeholder": "/usr/local/bin/other.sh special"
+                  }
+                }
+              }
+            },
+            "polling_interval": {
+              "title": "Polling Interval (seconds)",
+              "type": "integer",
+              "default": 10,
+              "minimum": 1,
+              "description": "How often to poll state_cmd to keep HomeKit in sync."
+            },
+            "timeout": {
+              "title": "Command Timeout (ms)",
+              "type": "integer",
+              "default": 3000,
+              "minimum": 500
+            }
+          }
+        }
+      }
+    }
+  },
+  "layout": [
+    {
+      "key": "televisions",
+      "type": "array",
+      "title": "Televisions",
+      "items": [
+        "televisions[].name",
+        "televisions[].state_cmd",
+        "televisions[].on_cmd",
+        "televisions[].off_cmd",
+        "televisions[].set_cmd",
+        {
+          "key": "televisions[].inputs",
+          "type": "array",
+          "title": "Inputs",
+          "items": [
+            "televisions[].inputs[].name",
+            "televisions[].inputs[].label",
+            "televisions[].inputs[].cmd"
+          ]
+        },
+        "televisions[].polling_interval",
+        "televisions[].timeout"
+      ]
+    }
+  ]
+}

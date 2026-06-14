@@ -1,0 +1,36 @@
+{
+  "name": "homebridge-cmd-television",
+  "version": "1.0.0",
+  "description": "Homebridge plugin that creates a virtual Television accessory with shell-command-driven input selection",
+  "main": "index.js",
+  "keywords": [
+    "homebridge",
+    "homebridge-plugin",
+    "homekit",
+    "television",
+    "input",
+    "selector",
+    "command",
+    "shell"
+  ],
+  "author": {
+    "name": "Michael Moosbauer",
+    "url": "https://github.com/moosy"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/moosy/homebridge-cmd-television#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moosy/homebridge-cmd-television.git"
+  },
+  "bugs": {
+    "url": "https://github.com/moosy/homebridge-cmd-television/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "homebridge": ">=1.6.0"
+  },
+  "peerDependencies": {
+    "homebridge": ">=1.6.0"
+  }
+}
