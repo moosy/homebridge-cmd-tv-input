@@ -1,6 +1,14 @@
 'use strict';
 
 const { exec } = require('child_process');
+const crypto = require('crypto');
+const { MqttMini, zugangLesen } = require('./mqtt-mini');
+
+// MQTT (optional, seit 2026-10-18): "mqtt": "<topic>" (z. B. twh/telefon/torweiterleitung/ziel). Der Wert ist der Name
+// des aktiven Inputs oder mqtt_aus (Standard "aus"). Einschalten schickt mqtt_ein (Standard "letztes"), Ausschalten
+// mqtt_aus, ein Input seinen Namen – jeweils an <topic>/set mit " @id", bestätigt durch das Ereignis des Dienstes.
+// Ohne "mqtt" wie bisher per Kommando (state_cmd, on_cmd, off_cmd, set_cmd) mit Polling.
+const MQTT_WARTEN = 10000;
 
 const PLUGIN_NAME   = 'homebridge-cmd-television';
 const PLATFORM_NAME = 'CmdTelevision';
@@ -22,8 +30,8 @@ class CmdTelevisionPlatform {
   discoverDevices() {
     const televisions = this.config.televisions || [];
     for (const tvConfig of televisions) {
-      if (!tvConfig.name || !tvConfig.inputs || !tvConfig.state_cmd) {
-        this.log.error('CmdTelevision: name, inputs and state_cmd are required.');
+      if (!tvConfig.name || !tvConfig.inputs || !(tvConfig.state_cmd || tvConfig.mqtt)) {
+        this.log.error('CmdTelevision: name, inputs and state_cmd (or mqtt) are required.');
         continue;
       }
       const uuid      = this.api.hap.uuid.generate(PLUGIN_NAME + ':' + tvConfig.name);
@@ -73,6 +81,11 @@ class CmdTelevisionAccessory {
         ? this.Characteristic.Active.ACTIVE
         : this.Characteristic.Active.INACTIVE)
       .onSet(async (value) => {
+        if (config.mqtt) {
+          const ein = value === this.Characteristic.Active.ACTIVE;
+          await this.mqttSenden(ein ? (config.mqtt_ein ?? 'letztes') : (config.mqtt_aus ?? 'aus'));
+          return;
+        }
         if (value === this.Characteristic.Active.ACTIVE) {
           if (config.on_cmd) {
             this.log.info(`CmdTelevision: EIN → ${config.on_cmd}`);
@@ -134,16 +147,101 @@ class CmdTelevisionAccessory {
       this.tvService.addLinkedService(inputSvc);
     }
 
-    // ── Polling ─────────────────────────────────────────────────────────────
+    // ── MQTT oder Polling ───────────────────────────────────────────────────
+    if (config.mqtt) {
+      this.mqttStarten();
+      return;
+    }
     const interval = (config.polling_interval ?? 10) * 1000;
     this.pollState();
     setInterval(() => this.pollState(), interval);
+  }
+
+  mqttStarten() {
+    const t = this.config.mqtt.split('/');
+    this.mqttErreichbar = t.slice(0, -1).join('/') + '/erreichbar';
+    this.mqttStatus = t.slice(0, -2).join('/') + '/status';
+    this.mqttEreignis = t.slice(0, -1).join('/') + '/ereignis';
+    this.mqttWerte = {};
+    this.mqttWartend = {};
+    const zugang = zugangLesen(this.config.mqttZugang || '/etc/twh-mqtt/homebridge.env');
+    this.mqtt = new MqttMini(Object.assign({}, zugang, { clientId: 'homebridge-cmd-tv-input-' + process.pid }));
+    this.mqtt.on('verbunden', () => { this.log.info('CmdTelevision: MQTT verbunden'); this.mqttMelden(); });
+    this.mqtt.on('getrennt', () => { this.log.info('CmdTelevision: MQTT getrennt'); this.mqttMelden(); });
+    this.mqtt.on('fehler', (e) => this.log.warn('CmdTelevision: MQTT: ' + e.message));
+    this.mqtt.on('nachricht', (topic, wert) => {
+      if (topic === this.mqttEreignis) {
+        let e;
+        try { e = JSON.parse(wert); } catch (x) { return; }
+        if (e && e.id && this.mqttWartend[e.id]) this.mqttWartend[e.id](e);
+        return;
+      }
+      if (wert === '') delete this.mqttWerte[topic]; else this.mqttWerte[topic] = wert;
+      this.mqttMelden();
+    });
+    [this.config.mqtt, this.mqttErreichbar, this.mqttStatus, this.mqttEreignis].forEach((x) => this.mqtt.abonnieren(x));
+    this.platform.api.on('shutdown', () => this.mqtt.beenden());
+  }
+
+  // Name des aktiven Inputs, null (aus) oder undefined (keine Verbindung, Dienst offline, nicht erreichbar)
+  mqttWert() {
+    const w = this.mqttWerte;
+    if (!this.mqtt || !this.mqtt.verbunden || w[this.mqttStatus] !== 'online' || w[this.mqttErreichbar] === 'false') return undefined;
+    const v = w[this.config.mqtt];
+    if (v === undefined) return undefined;
+    return v === (this.config.mqtt_aus ?? 'aus') ? null : v;
+  }
+
+  mqttMelden() {
+    const v = this.mqttWert();
+    const active = this.tvService.getCharacteristic(this.Characteristic.Active);
+    if (v === undefined) {
+      active.updateValue(new Error(this.config.name + ': kein Wert'));   // HomeKit: „Keine Antwort“
+      return;
+    }
+    const idx = v === null ? -1 : this.config.inputs.findIndex((inp) => inp.name === v);
+    this.isActive = idx >= 0;
+    active.updateValue(this.isActive ? this.Characteristic.Active.ACTIVE : this.Characteristic.Active.INACTIVE);
+    if (idx >= 0 && idx + 1 !== this.activeIdentifier) {
+      this.activeIdentifier = idx + 1;
+      this.tvService.updateCharacteristic(this.Characteristic.ActiveIdentifier, this.activeIdentifier);
+    }
+  }
+
+  // Befehl schicken und auf die Bestätigung warten; wirft bei Ablehnung, Zeitüberschreitung oder Dienst offline
+  mqttSenden(wert) {
+    return new Promise((resolve, reject) => {
+      const fehler = (text) => {
+        this.log.error(`CmdTelevision: ${wert}: ${text}`);
+        setTimeout(() => this.mqttMelden(), 100);           // HomeKit zurück auf den echten Stand
+        reject(new this.hap.HapStatusError(this.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE));
+      };
+      if (this.mqttWert() === undefined) return fehler('nicht erreichbar');
+      const id = crypto.randomBytes(6).toString('hex');
+      const timer = setTimeout(() => { delete this.mqttWartend[id]; fehler('keine Antwort vom Dienst'); },
+                               (this.config.mqttWarten ?? MQTT_WARTEN / 1000) * 1000);
+      this.mqttWartend[id] = (e) => {
+        clearTimeout(timer);
+        delete this.mqttWartend[id];
+        if (e.typ === 'ausgefuehrt') { this.log.info(`CmdTelevision: ${this.config.name} → ${wert}`); resolve(); }
+        else fehler(`${e.typ}: ${e.grund || ''}`);
+      };
+      if (!this.mqtt.senden(this.config.mqtt + '/set', `${wert} @${id}`)) {
+        clearTimeout(timer);
+        delete this.mqttWartend[id];
+        fehler('MQTT nicht verbunden');
+      }
+    });
   }
 
   async activateInput(id) {
     const input = this.config.inputs[id - 1];
     if (!input) {
       this.log.warn(`CmdTelevision: unknown identifier ${id}`);
+      return;
+    }
+    if (this.config.mqtt) {
+      await this.mqttSenden(input.name);
       return;
     }
     // cmd optional — Fallback: set_cmd + name (kein Leerzeichen-Problem da name intern)
