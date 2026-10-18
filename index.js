@@ -165,7 +165,7 @@ class CmdTelevisionAccessory {
     this.mqttWerte = {};
     this.mqttWartend = {};
     const zugang = zugangLesen(this.config.mqttZugang || '/etc/twh-mqtt/homebridge.env');
-    this.mqtt = new MqttMini(Object.assign({}, zugang, { clientId: 'homebridge-cmd-tv-input-' + process.pid }));
+    this.mqtt = new MqttMini(Object.assign({}, zugang, { clientId: 'homebridge-cmd-tv-input-' + process.pid + '-' + String(this.config.name).replace(/[^A-Za-z0-9]/g, '') }));
     this.mqtt.on('verbunden', () => { this.log.info('CmdTelevision: MQTT verbunden'); this.mqttMelden(); });
     this.mqtt.on('getrennt', () => { this.log.info('CmdTelevision: MQTT getrennt'); this.mqttMelden(); });
     this.mqtt.on('fehler', (e) => this.log.warn('CmdTelevision: MQTT: ' + e.message));
